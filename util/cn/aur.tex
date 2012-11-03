@@ -1,0 +1,151 @@
+\documentclass[a4paper,11pt]{jarticle}
+%\usepackage[dvips]{graphicx,color}
+%\usepackage{array,fancybox}
+\usepackage{tascmac}
+\usepackage{bm}
+\usepackage{amsmath}
+\usepackage{multicol}
+\usepackage{url}
+
+\setlength{\topmargin}{10mm}
+\addtolength{\topmargin}{-1in}
+\setlength{\oddsidemargin}{20mm}
+\setlength{\evensidemargin}{20mm}
+\addtolength{\oddsidemargin}{-1in}
+\addtolength{\evensidemargin}{-1in}
+\setlength{\textwidth}{170mm}
+\setlength{\textheight}{237mm}
+
+\setlength{\columnseprule}{1pt}
+
+\author{安達 知也\thanks{\texttt{adachi@il.is.s.u-tokyo.ac.jp}}}
+\title{\vspace*{-10mm}Aurifeuillian Factorの計算メモ}
+
+\begin{document}
+\maketitle
+\section{Notation}
+以下、円分数$\Phi_{n}(x)$の分解について考える。
+簡便のため$n\ge 2$、$x\ge 2$とする。
+$\mu(n)$はM\"{o}bius関数、$\varphi(n)$はEulerのphi関数、
+$(m, n)$は$m$と$n$のgcd、$(m|n)$はクロネッカー記号を表す。
+
+\section{円分多項式の代数的な分解}
+$x$がperfect powerの場合、多項式が代数的に分解されることがある。
+
+まず、$x = {x'}^{p^e}$の場合を考える。ただし、$p$は素数とする。
+このとき、$\Phi_{n}(x)$は、以下のように変形できる。
+
+\begin{eqnarray}
+\Phi_{n}(x) & = & \left\{
+\begin{array}{ll}
+\Phi_{n\cdot p^e}(x'), & \mbox{if }p \mid n\\
+\prod_{i=0}^{e} \Phi_{n\cdot p^i}(x'), & \mbox{if }p \not\mid n
+\end{array}\right. \label{cnpolyfactor0}
+\end{eqnarray}
+
+$n$の素因数が増えたほうがAurifeuillian factorizationの可能性が高まるので、
+$p|n$の場合でも有用な変形であると考えることができる。
+
+実際の値をプログラムで計算する場合、
+$\Phi_{n\cdot p^e}(X)$の次数が大きくなって計算が面倒なので、
+以下のようにして次数を抑える工夫をする。
+
+\begin{eqnarray}
+\Phi_{n}(x) & = & \left\{
+\begin{array}{ll}
+\Phi_{n}(x), & \mbox{if }p \mid n\\
+\prod_{i=0}^{e-1} \left(\Phi_{p\cdot n}(x'^{p^i})\right) \cdot \Phi_{n}(x'), & \mbox{if }p \not\mid n
+\end{array}\right. \label{cnpolyfactor1}
+\end{eqnarray}
+
+それでも計算が困難な場合は、$\Phi_{n}(x'^{i+1}) / \Phi_{n}(x'^{i})$を計算すればよい。
+
+\section{Aurifeuillian factorization}
+$x$はperfect powerでないとする
+\footnote{perfect powerでも分解できることがあるが、
+(\ref{cnpolyfactor0})を使ってperfect powerを除去しても同等の結果が得られるので、
+perfect powerの場合は考えない}。
+平方因子を持たない自然数$m$と整数$a$を使って$x = m\cdot a^2$と表したとき、
+以下に定める$t$と奇数$b$を使って$n = t\cdot m\cdot b$と分解できれば、
+$\Phi_{n}(x)$は同じくらいの大きさの二数に分解される。
+
+\begin{eqnarray}
+t & = & \left\{\begin{array}{ll}1, & \mbox{if }m = 1 \pmod{4}\\2, & \mbox{otherwise}\end{array}\right. \nonumber
+\end{eqnarray}
+
+日本語を交えた証明や計算式は\cite{ebs4}にあるが、詳しく追っていない。
+本稿では\cite{brent}に基づく計算方法をまとめる。
+
+\subsection{計算式}
+$n$および$x$が上記の条件を満たすとき、$\Phi_{n}(x)$は以下のように分解される。
+
+\begin{eqnarray}
+\Phi_{t\cdot m\cdot b}(x) & = & \Phi_{t\cdot m}(x^b) / P(x) \nonumber\\
+                          & = & \left(C_m(x^b)^2 - mx^bD_m(x^b)^2\right) / P(x) \nonumber\\
+                          & = & F^{+}(x) F^{-}(x) / P(x)\\
+                 F^{\pm}(x) & = & \left(C_m(x^b) \pm max^{\frac{b-1}{2}}D_m(x^b)\right)
+\end{eqnarray}
+
+ただし、$P(x)$は$\Phi_{t\cdot m\cdot b}(x)$と$\Phi_{t\cdot m}(x^b)$の比を表す整多項式である。
+この項を加味した分解は面倒だが、素因数分解の際には、$\Phi_{n}(x)$と$F^{\pm}(x)$のgcdをとれば十分である\cite{brent}。
+
+\subsection{$C_m$と$D_m$の計算}
+\cite{brent}によれば、$C_m$と$D_m$は以下のようにして計算できる。
+まず、
+
+\begin{eqnarray}
+q_k & = & \left\{
+\begin{array}{ll}
+(m|k), & \mbox{if }2\not\mid k\\
+\mu\left(tm / (tm, k)\right) \varphi\left((tm, k)\right) \cos\left((m-1)k\pi/4\right), & \mbox{otherwise}
+\end{array}\right. \label{qi0}
+\end{eqnarray}
+
+として係数を求めるための下準備を行う。
+それぞれの多項式の$k$次の係数を$c_k$、$d_k$とおく。
+ここで、$C_m$の次数は$\varphi(tm)/2$次、$D_m$の次数は$\varphi(tm)/2-1$次であることに注意する。
+$c_0 = d_0 = 1$として、先ほど求めた$q_k$を使って、$c_k$と$d_k$を順に求める。
+
+\begin{eqnarray}
+c_k & = & \frac{1}{2k}\sum_{j=0}^{k-1}\left(m\cdot q_{2k-2j-1}d_j - q_{2k-2j}c_j\right)\\
+d_k & = & \frac{1}{2k+1}\left(c_k + \sum_{j=0}^{k-1}\left(q_{2k-2j+1}c_j - q_{2k-2j}d_j\right)\right)
+\end{eqnarray}
+
+\subsection{高速化}
+$C_m$と$D_m$を求める際は、多項式の対称性から半分だけ計算を行い、残りは折り返してコピーすればよい。
+それに伴い、$q_k$も$k\le \varphi(tm)/2$まで求めれば十分となる。
+
+(\ref{qi0})式の計算のうち、$k$が偶数の場合に存在する除算やgcdは、式を整理することによって減らすことができる。
+$k = 2k'$として、式の整理を試みる。
+
+$m = 4m'+1$のとき、
+\begin{eqnarray}
+q_k & = & \mu\left(m / (m, 2k')\right) \varphi\left((m, 2k')\right) \cos\left(4m'\cdot2k'\pi/4\right) \nonumber\\
+    & = & \mu(m) \mu\left((m, k')\right) \varphi\left((m, k')\right)
+\end{eqnarray}
+
+$m = 4m'+2$のとき、
+\begin{eqnarray}
+q_k & = & \mu\left(2m / (2m, 2k')\right) \varphi\left((2m, 2k')\right) \cos\left((4m'+1)\cdot2k'\pi/4\right) \nonumber\\
+    & = & \mu\left(m / (m, k')\right) \varphi\left(2\cdot (m, k')\right) \cos\left(k'\pi/2\right) \nonumber\\
+    & = & \left\{
+\begin{array}{ll}
+0, & \mbox{if }2\not\mid k'\\
+2\cdot \mu(m/2) \mu\left((m/2, k'/2)\right) \varphi\left((m/2, k'/2)\right) (-1)^{k'/2}, & \mbox{otherwise}
+\end{array}\right.
+\end{eqnarray}
+
+$m = 4m'+3$のとき、
+\begin{eqnarray}
+q_k & = & \mu\left(2m / (2m, 2k')\right) \varphi\left((2m, 2k')\right) \cos\left((4m'+2)\cdot2k'\pi/4\right) \nonumber\\
+    & = & \mu\left(m / (m, k')\right) \varphi\left(2\cdot (m, k')\right) \cos\left(k'\pi\right) \nonumber\\
+    & = & \mu(m) \mu\left((m, k')\right) \varphi\left((m, k')\right) (-1)^{k'}
+\end{eqnarray}
+
+$q_k$を求める前に$m$を素因数分解しておけば、各項は数回の試し割りによって求めることができる。
+あるいは、篩のようにして除算なしで求めることもできる。
+
+\bibliographystyle{junsrt}
+\bibliography{aur}
+
+\end{document}

@@ -1,0 +1,393 @@
+Index: mpzspv.c
+===================================================================
+--- mpzspv.c	(revision 1559)
++++ mpzspv.c	(working copy)
+@@ -25,6 +25,73 @@
+ #include <string.h> /* for memset */
+ #include "sp.h"
+ 
++#define FAST_MOD_1
++
++#ifdef FAST_MOD_1
++#define udiv_qrnnd_preinv(q, r, nh, nl, d, di)				\
++  do {									\
++    mp_limb_t _n2, _n10, _nmask, _nadj, _q1;				\
++    mp_limb_t _xh, _xl;							\
++    _n2 = (nh);								\
++    _n10 = (nl);							\
++    _nmask = (mp_limb_t) ((signed long)_n10 >> 63);			\
++    _nadj = _n10 + (_nmask & (d));					\
++    umul_ppmm (_xh, _xl, di, _n2 - _nmask);				\
++    add_ssaaaa (_xh, _xl, _xh, _xl, _n2, _nadj);			\
++    _q1 = ~_xh;								\
++    umul_ppmm (_xh, _xl, _q1, d);					\
++    add_ssaaaa (_xh, _xl, _xh, _xl, nh, nl);				\
++    _xh -= (d);					/* xh = 0 or -1 */	\
++    (r) = _xl + ((d) & _xh);						\
++    (q) = _xh - _q1;							\
++  } while (0)
++
++static mp_limb_t
++mpn_mod_1_nu(mp_srcptr ap, mp_size_t n, spm_t spm)
++{
++  mp_limb_t b, binv, B1modb, B2modb;
++  unsigned long int cnt;
++  mp_limb_t ph, pl, rh, rl, r;
++  mp_limb_t dummy;
++  mp_size_t i;
++
++  cnt = spm->bcnt;
++  b = spm->sp << cnt;
++  binv = spm->binv;
++
++  if(__builtin_expect(n < 2, 0)){
++    rh = 0;
++    rl = ap[0];
++    goto skip;
++  }
++  B1modb = spm->B1modb;
++  B2modb = spm->B2modb;
++
++  umul_ppmm (ph, pl, ap[n-1], B1modb);
++  add_ssaaaa (rh, rl, ph, pl, 0, ap[n-2]);
++
++  for(i = n-3; i >= 0; i--){
++    /* rr = ap[i]			< B
++          + LO(rr)  * (B mod b)		<= (B-1)(b-1)
++          + HI(rr)  * (B^2 mod b)	<= (B-1)(b-1)
++    */
++    umul_ppmm (ph, pl, rl, B1modb);
++    add_ssaaaa (ph, pl, ph, pl, 0, ap[i]);
++
++    umul_ppmm (rh, rl, rh, B2modb);
++    add_ssaaaa (rh, rl, rh, rl, ph, pl);
++  }
++
++skip:
++  r = (rh << cnt) | (rl >> (64-cnt));
++  if(r >= b) r -= b;
++
++  udiv_qrnnd_preinv (dummy, r, r, rl << cnt, b, binv);
++  return r >> cnt;
++}
++
++#endif
++
+ mpzspv_t
+ mpzspv_init (spv_size_t len, mpzspm_t mpzspm)
+ {
+@@ -183,8 +250,13 @@
+   unsigned int j;
+ 
+   for (j = 0; j < sp_num; j++)
++#ifdef FAST_MOD_1
++    x[j][offset] = mpn_mod_1_nu (PTR(mpzvi), SIZ(mpzvi),
++                                 mpzspm->spm[j]);
++#else
+     x[j][offset] = mpn_mod_1 (PTR(mpzvi), SIZ(mpzvi),
+                               (mp_limb_t) mpzspm->spm[j]->sp);
++#endif
+   /* The typecast to mp_limb_t assumes that mp_limb_t is at least
+      as wide as sp_t */
+ }
+@@ -221,8 +293,13 @@
+   I0 = 1 << i0;
+   for (j = 0; j < sp_num; j += I0)
+     for (k = j; k < j + I0 && k < sp_num; k++)
++#ifdef FAST_MOD_1
++      x[k][offset] = mpn_mod_1_nu (PTR(T[0][j]), SIZ(T[0][j]),
++                                   mpzspm->spm[k]);
++#else
+       x[k][offset] = mpn_mod_1 (PTR(T[0][j]), SIZ(T[0][j]),
+                                 (mp_limb_t) mpzspm->spm[k]->sp);
++#endif
+   /* The typecast to mp_limb_t assumes that mp_limb_t is at least
+      as wide as sp_t */
+ }
+@@ -433,7 +510,11 @@
+             }      
+ 
+           for (k = 0; k < stride; k++)
++#ifdef FAST_MOD_1
++	    t[i][k] = mpn_mod_1_nu (d + 3 * k, 3, spm[i]);
++#else
+ 	    t[i][k] = mpn_mod_1 (d + 3 * k, 3, spm[i]->sp);
++#endif
+         }	  
+       mpzspv_set (x, l + offset, t, 0, stride, mpzspm);
+     }
+Index: ecm-ecm.h
+===================================================================
+--- ecm-ecm.h	(revision 1559)
++++ ecm-ecm.h	(working copy)
+@@ -136,6 +136,7 @@
+ /* eval.c */
+ int eval (mpcandi_t *n, FILE *fd, int bPrp);
+ int eval_str (mpcandi_t *n, char *cp, int primetest, char **EndChar); /* EndChar can be NULL */
++int eval_cn (mpcandi_t *n, FILE *fd);
+ void init_expr (void);
+ void free_expr (void);
+ 
+Index: sp.h
+===================================================================
+--- sp.h	(revision 1559)
++++ sp.h	(working copy)
+@@ -134,6 +134,10 @@
+ typedef struct
+ {
+   sp_t sp;		/* value of the sp */
++  sp_t binv;
++  sp_t B1modb;
++  sp_t B2modb;
++  unsigned long int bcnt;
+   sp_t mul_c;		/* constant used for reduction mod sp */
+   sp_t prim_root;
+   sp_t inv_prim_root;
+Index: spm.c
+===================================================================
+--- spm.c	(revision 1559)
++++ spm.c	(working copy)
+@@ -89,6 +89,63 @@
+   sp_aligned_free(data->twiddle);
+ }
+ 
++#define invert_limb(xi, x) \
++  do {									\
++    mp_limb_t dummy;							\
++    __asm__ volatile ("divq %4"						\
++		    : "=a" (xi), "=d" (dummy)				\
++		    : "0" ((UDItype)-1ul), "1" (~x), "rm" (x));		\
++  } while (0)
++
++#define lift_preinv(r, nh, d, di)					\
++  do {									\
++    mp_limb_t _qh, _ql, _r;						\
++    umul_ppmm (_qh, _ql, (nh), (di));					\
++    _qh += (nh) + 1;							\
++    _r = _qh * -(d);							\
++    if (_r > _ql)							\
++      _r += (d);							\
++    r = _r;								\
++  } while (0)
++
++#if 0
++  __asm__ volatile("mulq %2"
++            "\n\t" "movq %3, %%rcx"
++            "\n\t" "negq %%rcx"
++            "\n\t" "leaq 1(%2, %%rdx), %0"
++            "\n\t" "imulq %%rcx, %0"
++            "\n\t" "leaq (%3, %0), %%rcx"
++            "\n\t" "cmpq %%rax, %0"
++            "\n\t" "cmova %%rcx, %0"
++            :
++            "=r" (B2modb):
++            "a" (bi), "r" (B1modb), "r" (b) : "%rdx", "%rcx");
++#endif
++
++static void
++mod_1_mktable(spm_t spm)
++{
++  sp_t b, binv, B1modb, B2modb;
++  unsigned long int cnt;
++
++  b = spm->sp;
++  count_leading_zeros(cnt, b);
++  b <<= cnt;
++
++  invert_limb(binv, b);
++
++  B1modb = -b * ((binv >> 64-cnt) | (1ull << cnt));
++  lift_preinv(B2modb, B1modb, b, binv);
++
++  B1modb >>= cnt;
++  B2modb >>= cnt;
++
++  spm->binv = binv;
++  spm->B1modb = B1modb;
++  spm->B2modb = B2modb;
++  spm->bcnt = cnt;
++}
++
+ /* Compute some constants, including a primitive n'th root of unity. 
+    Returns NULL in case of error. */
+ spm_t
+@@ -105,6 +162,8 @@
+   spm->sp = sp;
+   sp_reciprocal (spm->mul_c, sp);
+ 
++  mod_1_mktable(spm);
++
+   /* find an $n$-th primitive root $a$ of unity $(mod sp)$. */
+ 
+   /* Construct a $b$ whose order $(mod sp)$ is equal to $n$.
+Index: main.c
+===================================================================
+--- main.c	(revision 1559)
++++ main.c	(working copy)
+@@ -27,6 +27,7 @@
+ #  include <winsock2.h>
+ #endif
+ #include "ecm-ecm.h"
++#include "cn.h"
+ 
+ #ifdef HAVE_UNISTD_H /* for access() */
+ # include <unistd.h>
+@@ -82,6 +83,8 @@
+      is now contained within eval() function.
+ */
+ 
++static int cnmode = 0;
++
+ int
+ read_number (mpcandi_t *n, FILE *fd, int primetest)
+ {
+@@ -104,6 +107,12 @@
+     return 0;
+ 
+   ungetc (c, fd);
++  if (cnmode == 1)
++    {
++      if (!eval_cn (n, fd))
++        goto new_line;
++    }
++  else
+   if (!eval (n, fd, primetest))
+     goto new_line;
+ 
+@@ -443,6 +452,7 @@
+   unsigned int breadthfirst_maxcnt=0, breadthfirst_cnt=0;
+   int breadthfirst = 0;
+   unsigned int count = 1; /* number of curves for each number */
++  unsigned int _count = 0;
+   unsigned int cnt = 0;   /* number of remaining curves for current number */
+   unsigned int linenum = 0, factsfound = 0;
+   mpcandi_t *pCandidates = NULL;
+@@ -614,6 +624,12 @@
+ 	  argv++;
+ 	  argc--;
+         }
++      else if (strcmp (argv[1], "-cn") == 0)
++        {
++          cnmode = 1;
++	  argv++;
++	  argc--;
++        }
+       else if ((argc > 2) && (strcmp (argv[1], "-x0")) == 0)
+         {
+           if (mpq_set_str (rat_x0, argv[2], 0))
+@@ -674,6 +690,13 @@
+ 	  argv += 2;
+ 	  argc -= 2;
+ 	}
++      else if ((argc > 2) && (strcmp (argv[1], "-cc") == 0))
++	{
++	  _count = atoi (argv[2]);
++	  /* should this be validated? and a error/abort issued if 0 ??? */
++	  argv += 2;
++	  argc -= 2;
++	}
+       else if ((argc > 2) && (strcmp (argv[1], "-save") == 0))
+ 	{
+ 	  savefilename = argv[2];
+@@ -1107,6 +1130,11 @@
+   gmp_randinit_default (randstate);
+   gmp_randseed_ui (randstate, get_random_ui ());
+ 
++  if (cnmode == 1)
++    {
++      cnpoly_free();
++      powlist_free();
++    }
+ 
+   /* Install signal handlers */
+ #ifdef HAVE_SIGNAL
+@@ -1278,7 +1306,12 @@
+ 	      else if (breadthfirst)
+ 		mpcandi_t_copy (&n,&pCandidates[linenum]);
+ 	      linenum++;
+-	      cnt = count;
++	      if (_count > 0)
++		{
++		  cnt = count - _count;
++		}
++	      else
++		cnt = count;
+ 	      /* reset B1 (and B2min) values, as they could have been advanced on the prior candidate */
+ 	      if (!breadthfirst)
+ 		{
+@@ -1340,8 +1373,10 @@
+         }
+       if (verbose >= 1)
+ 	{
+-	  if ((!breadthfirst && cnt == count) || (breadthfirst && 1 == breadthfirst_cnt))
++	  if ((!breadthfirst && (cnt == count || _count > 0)) || (breadthfirst && 1 == breadthfirst_cnt))
+ 	    {
++	      if (_count > 0)
++		_count = 0;
+ 	      /* first time this candidate has been run (if looping more than once */
+ 	      if (n.cpExpr && n.nexprlen < MAX_NUMBER_PRINT_LEN)
+ 		printf ("Input number is %s (%u digits)\n", n.cpExpr, n.ndigits);
+@@ -1717,6 +1752,9 @@
+   mpq_clear (rat_x0);
+   mpgocandi_t_free (&go);
+ 
++  cnpoly_free();
++  powlist_free();
++
+   ecm_clear (params);
+ 
+ #ifdef MEMORY_DEBUG
+Index: eval.c
+===================================================================
+--- eval.c	(revision 1559)
++++ eval.c	(working copy)
+@@ -23,6 +23,7 @@
+ #include <string.h>
+ #include <time.h>
+ #include "ecm-ecm.h"
++#include "cn.h"
+ 
+ #ifdef HAVE_STRINGS_H
+ # include <strings.h> /* for strncasecmp */
+@@ -245,6 +246,41 @@
+   return ret;
+ }
+ 
++static char cn_buf[CN_BUF_SIZE];
++
++int eval_cn(mpcandi_t *n, FILE *fp)
++{
++  _cn_t cn;
++  char *pos;
++  int ret;
++
++  if (fgets(cn_buf, CN_BUF_SIZE, fp) == NULL)
++    {
++      fputs("Error: fgets\n", stderr);
++      return 0;
++    }
++  pos = strpbrk(cn_buf, "\r\n");
++  if (pos == NULL)
++    {
++      fputs("Error: input too long\n", stderr);
++      return 0;
++    }
++  *pos = '\0';
++  ret = cn_set_str(&cn, cn_buf);
++  if (CN_IS_PARSE_ERROR(ret))
++    {
++      fputs("Error: parse error\n", stderr);
++      return 0;
++    }
++  if (ret == CN_OK && cn.flag == 'C')
++    ret = mpcandi_t_add_candidate(n, cn.factor[cn.nfactors-1], cn_buf, 0);
++  else
++    ret = 0;
++
++  cn_free(&cn);
++  return ret;
++}
++
+ void eval_power (mpz_t prior_n, mpz_t n,char op)
+ {
+ #if defined (DEBUG_EVALUATOR)

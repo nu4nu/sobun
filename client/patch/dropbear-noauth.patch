@@ -1,0 +1,487 @@
+diff -ru dropbear-0.52/Makefile.in dropbear-0.52-nu/Makefile.in
+--- dropbear-0.52/Makefile.in	2008-11-11 23:09:01.000000000 +0900
++++ dropbear-0.52-nu/Makefile.in	2010-01-21 08:40:38.000000000 +0900
+@@ -23,16 +23,16 @@
+ 		atomicio.o compat.o  fake-rfc2553.o
+ 
+ SVROBJS=svr-kex.o svr-algo.o svr-auth.o sshpty.o \
+-		svr-authpasswd.o svr-authpubkey.o svr-authpubkeyoptions.o svr-session.o svr-service.o \
++		svr-session.o svr-service.o \
+ 		svr-chansession.o svr-runopts.o svr-agentfwd.o svr-main.o svr-x11fwd.o\
+-		svr-tcpfwd.o svr-authpam.o
++		svr-tcpfwd.o
+ 
+ CLIOBJS=cli-algo.o cli-main.o cli-auth.o cli-authpasswd.o cli-kex.o \
+ 		cli-session.o cli-service.o cli-runopts.o cli-chansession.o \
+ 		cli-authpubkey.o cli-tcpfwd.o cli-channel.o cli-authinteract.o
+ 
+ CLISVROBJS=common-session.o packet.o common-algo.o common-kex.o \
+-			common-channel.o common-chansession.o termcodes.o loginrec.o \
++			common-channel.o common-chansession.o termcodes.o \
+ 			tcp-accept.o listener.o process-packet.o \
+ 			common-runopts.o circbuffer.o
+ 
+diff -ru dropbear-0.52/common-session.c dropbear-0.52-nu/common-session.c
+--- dropbear-0.52/common-session.c	2008-11-11 23:09:02.000000000 +0900
++++ dropbear-0.52-nu/common-session.c	2010-01-21 08:15:28.000000000 +0900
+@@ -425,6 +425,7 @@
+ 	return ret;
+ }
+ 
++#if 0
+ const char* get_user_shell() {
+ 	/* an empty shell should be interpreted as "/bin/sh" */
+ 	if (ses.authstate.pw_shell[0] == '\0') {
+@@ -455,4 +456,5 @@
+ 	ses.authstate.pw_shell = m_strdup(pw->pw_shell);
+ 	ses.authstate.pw_passwd = m_strdup(pw->pw_passwd);
+ }
++#endif
+ 
+diff -ru dropbear-0.52/configure dropbear-0.52-nu/configure
+--- dropbear-0.52/configure	2008-11-11 23:12:34.000000000 +0900
++++ dropbear-0.52-nu/configure	2010-01-21 02:28:06.000000000 +0900
+@@ -3149,7 +3149,7 @@
+ case "$host" in
+ 
+ *-*-linux*)
+-	no_ptmx_check=1
++#	no_ptmx_check=1
+ 	;;
+ 
+ *-*-solaris*)
+diff -ru dropbear-0.52/options.h dropbear-0.52-nu/options.h
+--- dropbear-0.52/options.h	2008-11-11 23:13:50.000000000 +0900
++++ dropbear-0.52-nu/options.h	2010-01-21 05:07:27.000000000 +0900
+@@ -51,7 +51,7 @@
+ #define DROPBEAR_SMALL_CODE
+ 
+ /* Enable X11 Forwarding - server only */
+-#define ENABLE_X11FWD
++//#define ENABLE_X11FWD
+ 
+ /* Enable TCP Fowarding */
+ /* 'Local' is "-L" style (client listening port forwarded via server)
+@@ -129,15 +129,15 @@
+ /* #define DSS_PROTOK */
+ 
+ /* Whether to do reverse DNS lookups. */
+-#define DO_HOST_LOOKUP
++//#define DO_HOST_LOOKUP
+ 
+ /* Whether to print the message of the day (MOTD). This doesn't add much code
+  * size */
+-#define DO_MOTD
++//#define DO_MOTD
+ 
+ /* The MOTD file path */
+ #ifndef MOTD_FILENAME
+-#define MOTD_FILENAME "/etc/motd"
++//#define MOTD_FILENAME "/etc/motd"
+ #endif
+ 
+ /* Authentication Types - at least one required.
+@@ -149,10 +149,10 @@
+  * but there's an interface via a PAM module - don't bother using it otherwise.
+  * You can't enable both PASSWORD and PAM. */
+ 
+-#define ENABLE_SVR_PASSWORD_AUTH
++//#define ENABLE_SVR_PASSWORD_AUTH
+ /* PAM requires ./configure --enable-pam */
+ /*#define ENABLE_SVR_PAM_AUTH*/
+-#define ENABLE_SVR_PUBKEY_AUTH
++//#define ENABLE_SVR_PUBKEY_AUTH
+ 
+ /* Wether to ake public key options in authorized_keys file into account */
+ #ifdef ENABLE_SVR_PUBKEY_AUTH
+@@ -220,7 +220,7 @@
+ /* The command to invoke for xauth when using X11 forwarding.
+  * "-q" for quiet */
+ #ifndef XAUTH_COMMAND
+-#define XAUTH_COMMAND "/usr/X11R6/bin/xauth -q"
++//#define XAUTH_COMMAND "/usr/X11R6/bin/xauth -q"
+ #endif
+ 
+ /* if you want to enable running an sftp server (such as the one included with
+@@ -232,7 +232,7 @@
+ 
+ /* This is used by the scp binary when used as a client binary. If you're
+  * not using the Dropbear client, you'll need to change it */
+-#define _PATH_SSH_PROGRAM "/usr/bin/dbclient"
++#define _PATH_SSH_PROGRAM "/bin/dbclient"
+ 
+ /* Whether to log commands executed by a client. This only logs the 
+  * (single) command sent to the server, not what a user did in a 
+@@ -265,6 +265,9 @@
+ /* The default path. This will often get replaced by the shell */
+ #define DEFAULT_PATH "/usr/bin:/bin"
+ 
++#define DEFAULT_HOME "/"
++#define DEFAULT_SHELL "/bin/sh"
++
+ /* Some other defines (that mostly should be left alone) are defined
+  * in sysoptions.h */
+ #include "sysoptions.h"
+diff -ru dropbear-0.52/scp.c dropbear-0.52-nu/scp.c
+--- dropbear-0.52/scp.c	2008-11-11 23:09:03.000000000 +0900
++++ dropbear-0.52-nu/scp.c	2010-01-24 22:26:28.000000000 +0900
+@@ -285,8 +285,10 @@
+ void run_err(const char *,...);
+ void verifydir(char *);
+ 
++#if 0
+ struct passwd *pwd;
+ uid_t userid;
++#endif
+ int errs, remin, remout;
+ int pflag, iamremote, iamrecursive, targetshouldbedirectory;
+ 
+@@ -392,8 +394,10 @@
+ 	argc -= optind;
+ 	argv += optind;
+ 
++#if 0
+ 	if ((pwd = getpwuid(userid = getuid())) == NULL)
+ 		fatal("unknown user %u", (u_int) userid);
++#endif
+ 
+ 	if (!isatty(STDERR_FILENO))
+ 		showprogress = 0;
+@@ -506,7 +510,11 @@
+ 				host = cleanhostname(host);
+ 				suser = argv[i];
+ 				if (*suser == '\0')
++#if 0
+ 					suser = pwd->pw_name;
++#else
++					suser = "root";
++#endif
+ 				else if (!okname(suser))
+ 					continue;
+ 				addargs(&alist, "-l");
+@@ -574,7 +582,11 @@
+ 			*host++ = 0;
+ 			suser = argv[i];
+ 			if (*suser == '\0')
++#if 0
+ 				suser = pwd->pw_name;
++#else
++				suser = "root";
++#endif
+ 		}
+ 		host = cleanhostname(host);
+ 		len = strlen(src) + CMDNEEDS + 20;
+diff -ru dropbear-0.52/sshpty.c dropbear-0.52-nu/sshpty.c
+--- dropbear-0.52/sshpty.c	2008-11-11 23:09:03.000000000 +0900
++++ dropbear-0.52-nu/sshpty.c	2010-01-21 08:15:59.000000000 +0900
+@@ -17,6 +17,9 @@
+ 
+ /*RCSID("OpenBSD: sshpty.c,v 1.7 2002/06/24 17:57:20 deraadt Exp ");*/
+ 
++#define _XOPEN_SOURCE 700
++#include <stdlib.h>
++
+ #include "includes.h"
+ #include "dbutil.h"
+ #include "errno.h"
+@@ -101,7 +104,11 @@
+ 	int ptm;
+ 	char *pts;
+ 
++#if 0
+ 	ptm = open("/dev/ptmx", O_RDWR | O_NOCTTY);
++#else
++	ptm = getpt();
++#endif
+ 	if (ptm < 0) {
+ 		dropbear_log(LOG_WARNING,
+ 				"pty_allocate: /dev/ptmx: %.100s", strerror(errno));
+@@ -133,6 +140,7 @@
+ 		close(*ptyfd);
+ 		return 0;
+ 	}
++#if 0
+ #ifndef HAVE_CYGWIN
+ 	/*
+ 	 * Push the appropriate streams modules, as described in Solaris pts(7).
+@@ -153,6 +161,7 @@
+ 	}
+ #endif
+ #endif
++#endif
+ 	return 1;
+ #else /* USE_DEV_PTMX */
+ #ifdef HAVE_DEV_PTS_AND_PTC
+diff -ru dropbear-0.52/svr-agentfwd.c dropbear-0.52-nu/svr-agentfwd.c
+--- dropbear-0.52/svr-agentfwd.c	2008-11-11 23:09:03.000000000 +0900
++++ dropbear-0.52-nu/svr-agentfwd.c	2010-01-21 04:52:51.000000000 +0900
+@@ -155,10 +155,12 @@
+ 		 * for themselves */
+ 		uid = getuid();
+ 		gid = getgid();
++#if 0
+ 		if ((setegid(ses.authstate.pw_gid)) < 0 ||
+ 			(seteuid(ses.authstate.pw_uid)) < 0) {
+ 			dropbear_exit("failed to set euid");
+ 		}
++#endif
+ 
+ 		/* 2 for "/" and "\0" */
+ 		len = strlen(chansess->agentdir) + strlen(chansess->agentfile) + 2;
+@@ -218,10 +220,12 @@
+ 	/* drop to user privs to make the dir/file */
+ 	uid = getuid();
+ 	gid = getgid();
++#if 0
+ 	if ((setegid(ses.authstate.pw_gid)) < 0 ||
+ 		(seteuid(ses.authstate.pw_uid)) < 0) {
+ 		dropbear_exit("failed to set euid");
+ 	}
++#endif
+ 
+ 	memset((void*)&addr, 0x0, sizeof(addr));
+ 	addr.sun_family = AF_UNIX;
+diff -ru dropbear-0.52/svr-auth.c dropbear-0.52-nu/svr-auth.c
+--- dropbear-0.52/svr-auth.c	2008-11-11 23:09:03.000000000 +0900
++++ dropbear-0.52-nu/svr-auth.c	2010-01-21 08:17:56.000000000 +0900
+@@ -41,15 +41,21 @@
+ /* initialise the first time for a session, resetting all parameters */
+ void svr_authinitialise() {
+ 
++#if 0
+ 	ses.authstate.failcount = 0;
+ 	ses.authstate.pw_name = NULL;
+ 	ses.authstate.pw_dir = NULL;
+ 	ses.authstate.pw_shell = NULL;
+ 	ses.authstate.pw_passwd = NULL;
+ 	authclear();
++#else
++	ses.authstate.authdone = 0;
++	ses.authstate.authtypes = 0;
++#endif
+ 	
+ }
+ 
++#if 0
+ /* Reset the auth state, but don't reset the failcount. This is for if the
+  * user decides to try with a different username etc, and is also invoked
+  * on initialisation */
+@@ -78,6 +84,7 @@
+ 	}
+ 	
+ }
++#endif
+ 
+ /* Send a banner message if specified to the client. The client might
+  * ignore this, but possibly serves as a legal "no trespassing" sign */
+@@ -145,10 +152,15 @@
+ 			strncmp(methodname, AUTH_METHOD_NONE,
+ 				AUTH_METHOD_NONE_LEN) == 0) {
+ 		TRACE(("recv_msg_userauth_request: 'none' request"))
++#if 0
+ 		send_msg_userauth_failure(0, 0);
++#else
++		send_msg_userauth_success();
++#endif
+ 		goto out;
+ 	}
+ 	
++#if 0
+ 	/* check username is good before continuing */
+ 	if (checkusername(username, userlen) == DROPBEAR_FAILURE) {
+ 		/* username is invalid/no shell/etc - send failure */
+@@ -192,6 +204,7 @@
+ 		goto out;
+ 	}
+ #endif
++#endif
+ 
+ 	/* nothing matched, we just fail */
+ 	send_msg_userauth_failure(0, 1);
+@@ -204,6 +217,7 @@
+ }
+ 
+ 
++#if 0
+ /* Check that the username exists, has a non-empty password, and has a valid
+  * shell.
+  * returns DROPBEAR_SUCCESS on valid username, DROPBEAR_FAILURE on failure */
+@@ -294,6 +308,7 @@
+ 	return DROPBEAR_SUCCESS;
+ 
+ }
++#endif
+ 
+ /* Send a failure message to the client, in responds to a userauth_request.
+  * Partial indicates whether to set the "partial success" flag,
+@@ -336,6 +351,7 @@
+ 	buf_putbyte(ses.writepayload, partial ? 1 : 0);
+ 	encrypt_packet();
+ 
++#if 0
+ 	if (incrfail) {
+ 		usleep(300000); /* XXX improve this */
+ 		ses.authstate.failcount++;
+@@ -354,6 +370,7 @@
+ 		dropbear_exit("Max auth tries reached - user '%s' from %s",
+ 				userstr, svr_ses.addrstring);
+ 	}
++#endif
+ 	
+ 	TRACE(("leave send_msg_userauth_failure"))
+ }
+@@ -374,9 +391,13 @@
+ 	ses.connect_time = 0;
+ 
+ 
++#if 0
+ 	if (ses.authstate.pw_uid == 0) {
++#endif
+ 		ses.allowprivport = 1;
++#if 0
+ 	}
++#endif
+ 
+ 	/* Remove from the list of pre-auth sockets. Should be m_close(), since if
+ 	 * we fail, we might end up leaking connection slots, and disallow new
+diff -ru dropbear-0.52/svr-chansession.c dropbear-0.52-nu/svr-chansession.c
+--- dropbear-0.52/svr-chansession.c	2008-11-11 23:09:03.000000000 +0900
++++ dropbear-0.52-nu/svr-chansession.c	2010-01-21 08:26:55.000000000 +0900
+@@ -272,11 +272,13 @@
+ 	m_free(chansess->term);
+ 
+ 	if (chansess->tty) {
++#if 0
+ 		/* write the utmp/wtmp login record */
+ 		li = login_alloc_entry(chansess->pid, ses.authstate.username,
+ 				ses.remotehost, chansess->tty);
+ 		login_logout(li);
+ 		login_free_entry(li);
++#endif
+ 
+ 		pty_release(chansess->tty);
+ 		m_free(chansess->tty);
+@@ -555,10 +557,12 @@
+ 		dropbear_exit("out of memory"); /* TODO disconnect */
+ 	}
+ 
++#if 0
+ 	pw = getpwnam(ses.authstate.pw_name);
+ 	if (!pw)
+ 		dropbear_exit("getpwnam failed after succeeding previously");
+ 	pty_setowner(pw, chansess->tty);
++#endif
+ 
+ 	/* Set up the rows/col counts */
+ 	sessionwinchange(chansess);
+@@ -734,12 +738,14 @@
+ 
+ 		close(chansess->slave);
+ 
++#if 0
+ 		/* write the utmp/wtmp login record - must be after changing the
+ 		 * terminal used for stdout with the dup2 above */
+ 		li= login_alloc_entry(getpid(), ses.authstate.username,
+ 				ses.remotehost, chansess->tty);
+ 		login_login(li);
+ 		login_free_entry(li);
++#endif
+ 
+ 		m_free(chansess->tty);
+ 
+@@ -849,6 +855,7 @@
+ #endif /* HAVE_CLEARENV */
+ #endif /* DEBUG_VALGRIND */
+ 
++#if 0
+ 	/* We can only change uid/gid as root ... */
+ 	if (getuid() == 0) {
+ 
+@@ -872,19 +879,28 @@
+ 			dropbear_exit("couldn't	change user as non-root");
+ 		}
+ 	}
++#endif
+ 
+ 	/* set env vars */
++#if 0
+ 	addnewvar("USER", ses.authstate.pw_name);
+ 	addnewvar("LOGNAME", ses.authstate.pw_name);
+ 	addnewvar("HOME", ses.authstate.pw_dir);
+ 	addnewvar("SHELL", get_user_shell());
+ 	addnewvar("PATH", DEFAULT_PATH);
++#else
++	addnewvar("HOME", DEFAULT_HOME);
++#endif
+ 	if (chansess->term != NULL) {
+ 		addnewvar("TERM", chansess->term);
+ 	}
+ 
+ 	/* change directory */
++#if 0
+ 	if (chdir(ses.authstate.pw_dir) < 0) {
++#else
++	if (chdir(DEFAULT_HOME) < 0) {
++#endif
+ 		dropbear_exit("error changing directory");
+ 	}
+ 
+@@ -897,7 +913,11 @@
+ 	agentset(chansess);
+ #endif
+ 
++#if 0
+ 	usershell = m_strdup(get_user_shell());
++#else
++	usershell = m_strdup(DEFAULT_SHELL);
++#endif
+ 	run_shell_command(chansess->cmd, ses.maxfd, usershell);
+ 
+ 	/* only reached on error */
+diff -ru dropbear-0.52/svr-main.c dropbear-0.52-nu/svr-main.c
+--- dropbear-0.52/svr-main.c	2008-11-11 23:09:03.000000000 +0900
++++ dropbear-0.52-nu/svr-main.c	2010-01-21 08:20:42.000000000 +0900
+@@ -155,12 +155,14 @@
+ 		}
+ 	}
+ 
++#if 0
+ 	/* should be done after syslog is working */
+ 	if (svr_opts.forkbg) {
+ 		dropbear_log(LOG_INFO, "Running in background");
+ 	} else {
+ 		dropbear_log(LOG_INFO, "Not backgrounding");
+ 	}
++#endif
+ 
+ 	/* create a PID file so that we can be killed easily */
+ 	pidfile = fopen(svr_opts.pidfile, "w");
+@@ -294,7 +296,9 @@
+ 
+ 				m_free(remote_addr_str);
+ 				addrstring = getaddrstring(&remoteaddr, 1);
++#if 0
+ 				dropbear_log(LOG_INFO, "Child connection from %s", addrstring);
++#endif
+ 
+ #ifndef DEBUG_NOFORK
+ 				if (setsid() < 0) {
+diff -ru dropbear-0.52/svr-session.c dropbear-0.52-nu/svr-session.c
+--- dropbear-0.52/svr-session.c	2008-11-11 23:09:03.000000000 +0900
++++ dropbear-0.52-nu/svr-session.c	2010-01-21 08:27:46.000000000 +0900
+@@ -120,6 +120,7 @@
+ /* failure exit - format must be <= 100 chars */
+ void svr_dropbear_exit(int exitcode, const char* format, va_list param) {
+ 
++#if 0
+ 	char fmtbuf[300];
+ 
+ 	if (!sessinitdone) {
+@@ -143,6 +144,7 @@
+ 	}
+ 
+ 	_dropbear_log(LOG_INFO, fmtbuf, param);
++#endif
+ 
+ 	/* free potential public key options */
+ 	svr_pubkey_options_cleanup();

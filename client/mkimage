@@ -1,0 +1,1 @@
+find . | cpio -R root:root -a -o -c | gzip -9 >../nsc64.img
