@@ -6,12 +6,16 @@
 static struct {
   mpz_t *list;
   int degree;
+  int maxdegree;
 } powlist[CN_MAXX+1];
 
 static inline void pow_list_append(int x, int d){
   mpz_t *list = powlist[x].list;
   int i;
 
+  if(powlist[x].maxdegree < d){
+    powlist[x].list = list = realloc(list, (d+1) * sizeof(mpz_t));
+  }
   for(i = powlist[x].degree+1; i <= d; i++){
     mpz_init(list[i]);
     mpz_mul_ui(list[i], list[i-1], x);
@@ -25,6 +29,7 @@ static inline void pow_list_init(int x, int d){
   mpz_init_set_ui(powlist[x].list[0], 1);
   mpz_init_set_ui(powlist[x].list[1], x);
   powlist[x].degree = 1;
+  powlist[x].maxdegree = CN_MAXPHI;
   pow_list_append(x, d);
 }
 
