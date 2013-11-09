@@ -18,7 +18,7 @@ static char *readall(FILE *fp){
   do{
     ret = fread(buf + len, sizeof(char), sz - len, fp);
     len += ret;
-    if(ret < sz){
+    if(len < sz){
       if(ferror(fp)){
         free(buf);
         return NULL;
